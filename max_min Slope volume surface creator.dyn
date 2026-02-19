@@ -1,0 +1,735 @@
+{
+  "Uuid": "2be83d64-fa4e-47f7-b316-d7e367adfc0e",
+  "IsCustomNode": false,
+  "Description": "",
+  "Name": "max_min Slope volume surface_v1",
+  "ElementResolver": {
+    "ResolutionMap": {}
+  },
+  "Inputs": [
+    {
+      "Id": "1d8a27dcb2384f1185ff9e667d4eb97e",
+      "Name": "Select Object",
+      "Type": "selection",
+      "Type2": "hostSelection",
+      "Value": "26B63",
+      "Description": "Select object in the current document.",
+      "SelectedIndex": 0
+    },
+    {
+      "Id": "a8f5ae211fb74f75a6bd383eda58e61e",
+      "Name": "Surface Styles",
+      "Type": "selection",
+      "Type2": "dropdownSelection",
+      "Value": "Triangulation - Green",
+      "Description": "Select Surface Style.",
+      "SelectedIndex": 7
+    }
+  ],
+  "Outputs": [],
+  "Nodes": [
+    {
+      "ConcreteType": "Autodesk.AutoCAD.DynamoNodes.ObjectSelection, AutoCADNodesUI",
+      "NodeType": "ExtensionNode",
+      "InstanceId": [
+        "26B63"
+      ],
+      "Id": "1d8a27dcb2384f1185ff9e667d4eb97e",
+      "Inputs": [],
+      "Outputs": [
+        {
+          "Id": "539d0ce1e9664d4bb1f6232ea96d6a68",
+          "Name": "Object",
+          "Description": "Object",
+          "UsingDefaultValue": false,
+          "Level": 2,
+          "UseLevels": false,
+          "KeepListStructure": false
+        }
+      ],
+      "Replication": "Disabled"
+    },
+    {
+      "ConcreteType": "Dynamo.Graph.Nodes.ZeroTouch.DSFunction, DynamoCore",
+      "NodeType": "FunctionNode",
+      "FunctionSignature": "Autodesk.Civil.DynamoNodes.CivilObject.Name",
+      "Id": "2652c0d9a38d415f9cff2e0ece41ec68",
+      "Inputs": [
+        {
+          "Id": "13b71ac494044482bee96b78a6cd78bc",
+          "Name": "civilObject",
+          "Description": "Autodesk.Civil.DynamoNodes.CivilObject",
+          "UsingDefaultValue": false,
+          "Level": 2,
+          "UseLevels": false,
+          "KeepListStructure": false
+        }
+      ],
+      "Outputs": [
+        {
+          "Id": "4117654d2ed540b092b66c7c1bf6f627",
+          "Name": "string",
+          "Description": "string",
+          "UsingDefaultValue": false,
+          "Level": 2,
+          "UseLevels": false,
+          "KeepListStructure": false
+        }
+      ],
+      "Replication": "Auto",
+      "Description": "Get the name of the civil object.\n\nCivilObject.Name: string"
+    },
+    {
+      "ConcreteType": "PythonNodeModels.PythonNode, PythonNodeModels",
+      "NodeType": "PythonScriptNode",
+      "Code": "import clr\r\nclr.AddReference(\"AcMgd\")\r\nclr.AddReference(\"AcDbMgd\")\r\nclr.AddReference(\"AeccDbMgd\")\r\nclr.AddReference(\"System\")\r\n\r\nfrom System import Array\r\nfrom Autodesk.AutoCAD.ApplicationServices import Application\r\nfrom Autodesk.AutoCAD.DatabaseServices import OpenMode, ObjectId\r\nfrom Autodesk.AutoCAD.Colors import Color\r\nfrom Autodesk.Civil.ApplicationServices import CivilApplication\r\nfrom Autodesk.Civil.DatabaseServices import Surface, SurfaceAnalysisSlopeData\r\n\r\nadoc  = Application.DocumentManager.MdiActiveDocument\r\ndb    = adoc.Database\r\ncdoc  = CivilApplication.ActiveDocument\r\n\r\nsurf_in = IN[0]\r\ntable   = IN[1]\r\n\r\ndef get_objectid(x):\r\n    if isinstance(x, ObjectId):\r\n        return x\r\n    if hasattr(x, \"InternalObjectId\"):\r\n        return x.InternalObjectId\r\n    return None\r\n\r\ndef find_surface_id_by_name(name, tr):\r\n    for sid in cdoc.GetSurfaceIds():\r\n        s = tr.GetObject(sid, OpenMode.ForRead)\r\n        if hasattr(s, \"Name\") and s.Name == name:\r\n            return sid\r\n    return None\r\n\r\nlock = adoc.LockDocument()\r\ntry:\r\n    with db.TransactionManager.StartTransaction() as tr:\r\n\r\n        sid = get_objectid(surf_in)\r\n        if sid is None:\r\n            if isinstance(surf_in, str):\r\n                sid = find_surface_id_by_name(surf_in, tr)\r\n            if sid is None:\r\n                raise Exception(\"Surface not found (object or name).\")\r\n\r\n        # IMPORTANT: open FOR WRITE\r\n        surf = tr.GetObject(sid, OpenMode.ForWrite)\r\n        if not isinstance(surf, Surface):\r\n            raise Exception(\"Resolved object is not a Civil 3D Surface.\")\r\n\r\n        sasd = []\r\n        for row in table:\r\n            # row = [min%, max%, r,g,b]\r\n            mn = float(row[0]) / 100.0   # % -> 0-1 where 1.0 = 100%\r\n            mx = float(row[1]) / 100.0\r\n            col = Color.FromRgb(int(row[2]), int(row[3]), int(row[4]))\r\n            sasd.append(SurfaceAnalysisSlopeData(mn, mx, col))\r\n\r\n        # Typed .NET array (critical)\r\n        surf.Analysis.SetSlopeData(Array[SurfaceAnalysisSlopeData](sasd))\r\n\r\n        if hasattr(surf, \"Rebuild\"):\r\n            surf.Rebuild()\r\n\r\n        tr.Commit()\r\n\r\n        OUT = len(sasd)\r\n\r\nfinally:\r\n    lock.Dispose()\r\n",
+      "Engine": "CPython3",
+      "EngineName": "CPython3",
+      "VariableInputPorts": true,
+      "Id": "6e8fc2c7f4304f518e2c1a0ec25f624e",
+      "Inputs": [
+        {
+          "Id": "410771cb44ad4f1794f7048e03b55bec",
+          "Name": "IN[0]",
+          "Description": "Input #0",
+          "UsingDefaultValue": false,
+          "Level": 2,
+          "UseLevels": false,
+          "KeepListStructure": false
+        },
+        {
+          "Id": "394078af14fe46d7bf961aae23b8dd68",
+          "Name": "IN[1]",
+          "Description": "Input #1",
+          "UsingDefaultValue": false,
+          "Level": 2,
+          "UseLevels": false,
+          "KeepListStructure": false
+        }
+      ],
+      "Outputs": [
+        {
+          "Id": "5396077a9cc644838820a43353194540",
+          "Name": "OUT",
+          "Description": "Result of the python script",
+          "UsingDefaultValue": false,
+          "Level": 2,
+          "UseLevels": false,
+          "KeepListStructure": false
+        }
+      ],
+      "Replication": "Disabled",
+      "Description": "Runs an embedded Python script."
+    },
+    {
+      "ConcreteType": "Dynamo.Graph.Nodes.CodeBlockNodeModel, DynamoCore",
+      "NodeType": "CodeBlockNode",
+      "Code": "[\n  [0,0.4,127,191,255],\n  [5,100,255,127,127]\n];",
+      "Id": "a756971e06c645bd8bae901e6461050a",
+      "Inputs": [],
+      "Outputs": [
+        {
+          "Id": "53f3d9e7c8e342809382028625c566c4",
+          "Name": "",
+          "Description": "Value of expression at line 1",
+          "UsingDefaultValue": false,
+          "Level": 2,
+          "UseLevels": false,
+          "KeepListStructure": false
+        }
+      ],
+      "Replication": "Disabled",
+      "Description": "Allows for DesignScript code to be authored directly"
+    },
+    {
+      "ConcreteType": "CoreNodeModels.Watch, CoreNodeModels",
+      "NodeType": "ExtensionNode",
+      "Id": "ca8b071381314c4d8e64d707a7d85cf8",
+      "Inputs": [
+        {
+          "Id": "3f93ffe305b746838e9bf13ace62507f",
+          "Name": "",
+          "Description": "Node to show output from",
+          "UsingDefaultValue": false,
+          "Level": 2,
+          "UseLevels": false,
+          "KeepListStructure": false
+        }
+      ],
+      "Outputs": [
+        {
+          "Id": "a9b0154f819a414883371aa9c972d641",
+          "Name": "",
+          "Description": "Node output",
+          "UsingDefaultValue": false,
+          "Level": 2,
+          "UseLevels": false,
+          "KeepListStructure": false
+        }
+      ],
+      "Replication": "Disabled",
+      "Description": "Visualizes a node's output"
+    },
+    {
+      "ConcreteType": "Dynamo.Graph.Nodes.ZeroTouch.DSFunction, DynamoCore",
+      "NodeType": "FunctionNode",
+      "FunctionSignature": "Camber.Civil.CivilObjects.Surfaces.TinSurface.ByName@Autodesk.AutoCAD.DynamoNodes.Document,string,Camber.Civil.Styles.Objects.SurfaceStyle",
+      "Id": "993b121238504e6b9a5376321c1f11e0",
+      "Inputs": [
+        {
+          "Id": "c885ca16f20340bcb9d61e32c8424708",
+          "Name": "document",
+          "Description": "Document",
+          "UsingDefaultValue": false,
+          "Level": 2,
+          "UseLevels": false,
+          "KeepListStructure": false
+        },
+        {
+          "Id": "e1132f8d540a49cfb44ba363d1c91042",
+          "Name": "name",
+          "Description": "string",
+          "UsingDefaultValue": false,
+          "Level": 2,
+          "UseLevels": false,
+          "KeepListStructure": false
+        },
+        {
+          "Id": "26c5c6b22c274559b1deb871a51bdc08",
+          "Name": "surfaceStyle",
+          "Description": "SurfaceStyle",
+          "UsingDefaultValue": false,
+          "Level": 2,
+          "UseLevels": false,
+          "KeepListStructure": false
+        }
+      ],
+      "Outputs": [
+        {
+          "Id": "2fb46b95b54044c2b9b0b0be458fe842",
+          "Name": "Surface",
+          "Description": "Surface",
+          "UsingDefaultValue": false,
+          "Level": 2,
+          "UseLevels": false,
+          "KeepListStructure": false
+        }
+      ],
+      "Replication": "Auto",
+      "Description": "Creates a new empty TIN Surface by name and style.\n\nTinSurface.ByName (document: Document, name: string, surfaceStyle: SurfaceStyle): Surface"
+    },
+    {
+      "ConcreteType": "Dynamo.Graph.Nodes.ZeroTouch.DSFunction, DynamoCore",
+      "NodeType": "FunctionNode",
+      "FunctionSignature": "Autodesk.AutoCAD.DynamoNodes.Document.Current",
+      "Id": "767bc33554ca4bb59459fb6a6ba719a4",
+      "Inputs": [],
+      "Outputs": [
+        {
+          "Id": "a61eb6fb819a45c99aa3087042900497",
+          "Name": "Document",
+          "Description": "Document",
+          "UsingDefaultValue": false,
+          "Level": 2,
+          "UseLevels": false,
+          "KeepListStructure": false
+        }
+      ],
+      "Replication": "Auto",
+      "Description": "Get the current AutoCAD document.\n\nDocument.Current: Document"
+    },
+    {
+      "ConcreteType": "Dynamo.Graph.Nodes.ZeroTouch.DSFunction, DynamoCore",
+      "NodeType": "FunctionNode",
+      "FunctionSignature": "Camber.Civil.CivilObjects.Surfaces.TinSurface.PasteSurface@Autodesk.Civil.DynamoNodes.TinSurface,Autodesk.Civil.DynamoNodes.Surface",
+      "Id": "9bffe1677a734f62852402f84c95ba47",
+      "Inputs": [
+        {
+          "Id": "59f0336764754de390cb2b5e80ee1fa4",
+          "Name": "surfaceToPasteInto",
+          "Description": "TIN Surface\n\nTinSurface",
+          "UsingDefaultValue": false,
+          "Level": 2,
+          "UseLevels": false,
+          "KeepListStructure": false
+        },
+        {
+          "Id": "733ddb86a9cc4b969296c6721bacd6aa",
+          "Name": "surfaceToPaste",
+          "Description": "TIN Surface, Grid Surface, TIN Volume Surface, or Grid Volume Surface\n\nSurface",
+          "UsingDefaultValue": false,
+          "Level": 2,
+          "UseLevels": false,
+          "KeepListStructure": false
+        }
+      ],
+      "Outputs": [
+        {
+          "Id": "af52193fc32d450da6da850635f89db7",
+          "Name": "Surface",
+          "Description": "Surface",
+          "UsingDefaultValue": false,
+          "Level": 2,
+          "UseLevels": false,
+          "KeepListStructure": false
+        }
+      ],
+      "Replication": "Auto",
+      "Description": "Pastes a Surface into a TIN Surface.\n\nTinSurface.PasteSurface (surfaceToPasteInto: TinSurface, surfaceToPaste: Surface): Surface"
+    },
+    {
+      "ConcreteType": "Dynamo.Graph.Nodes.CodeBlockNodeModel, DynamoCore",
+      "NodeType": "CodeBlockNode",
+      "Code": "\"Slope Analysis\";",
+      "Id": "6d0d35169daf492d9290030a458d89dd",
+      "Inputs": [],
+      "Outputs": [
+        {
+          "Id": "f435ba03a13544309509df67364661fd",
+          "Name": "",
+          "Description": "Value of expression at line 1",
+          "UsingDefaultValue": false,
+          "Level": 2,
+          "UseLevels": false,
+          "KeepListStructure": false
+        }
+      ],
+      "Replication": "Disabled",
+      "Description": "Allows for DesignScript code to be authored directly"
+    },
+    {
+      "ConcreteType": "Camber.UI.SurfaceStyleDropDown, CamberUI",
+      "SelectedIndex": 7,
+      "SelectedString": "Triangulation - Green",
+      "NodeType": "ExtensionNode",
+      "Id": "a8f5ae211fb74f75a6bd383eda58e61e",
+      "Inputs": [],
+      "Outputs": [
+        {
+          "Id": "0035588bf41343f28ed511d28e6c92a6",
+          "Name": "surfaceStyle",
+          "Description": "The selected surfaceStyle",
+          "UsingDefaultValue": false,
+          "Level": 2,
+          "UseLevels": false,
+          "KeepListStructure": false
+        }
+      ],
+      "Replication": "Disabled",
+      "Description": "Select Surface Style."
+    },
+    {
+      "ConcreteType": "Dynamo.Graph.Nodes.ZeroTouch.DSFunction, DynamoCore",
+      "NodeType": "FunctionNode",
+      "FunctionSignature": "Autodesk.Civil.DynamoNodes.Selection.SurfaceByName@string,Autodesk.AutoCAD.DynamoNodes.Document",
+      "Id": "da3aeadafb2b41ec9035cc5ad8434008",
+      "Inputs": [
+        {
+          "Id": "66fe0aadc62042a9af5b988df3233b77",
+          "Name": "name",
+          "Description": "string",
+          "UsingDefaultValue": false,
+          "Level": 2,
+          "UseLevels": false,
+          "KeepListStructure": false
+        },
+        {
+          "Id": "199d1f09f1aa4cf7aec509d6d284a20b",
+          "Name": "document",
+          "Description": "Document",
+          "UsingDefaultValue": false,
+          "Level": 2,
+          "UseLevels": false,
+          "KeepListStructure": false
+        }
+      ],
+      "Outputs": [
+        {
+          "Id": "80f1f91f496f4225acb1f9d66aa2aa57",
+          "Name": "Surface",
+          "Description": "Surface",
+          "UsingDefaultValue": false,
+          "Level": 2,
+          "UseLevels": false,
+          "KeepListStructure": false
+        }
+      ],
+      "Replication": "Auto",
+      "Description": "Select a surface by a specified surface name.\n\nSelection.SurfaceByName (name: string, document: Document): Surface"
+    },
+    {
+      "ConcreteType": "Dynamo.Graph.Nodes.ZeroTouch.DSFunction, DynamoCore",
+      "NodeType": "FunctionNode",
+      "FunctionSignature": "Autodesk.AutoCAD.DynamoNodes.Document.Current",
+      "Id": "b9d882616a3f46d284c96c11739985b9",
+      "Inputs": [],
+      "Outputs": [
+        {
+          "Id": "88322f28fa37468db16c1127d189d457",
+          "Name": "Document",
+          "Description": "Document",
+          "UsingDefaultValue": false,
+          "Level": 2,
+          "UseLevels": false,
+          "KeepListStructure": false
+        }
+      ],
+      "Replication": "Auto",
+      "Description": "Get the current AutoCAD document.\n\nDocument.Current: Document"
+    }
+  ],
+  "Connectors": [
+    {
+      "Start": "539d0ce1e9664d4bb1f6232ea96d6a68",
+      "End": "13b71ac494044482bee96b78a6cd78bc",
+      "Id": "34b6eb19830c4a21baf8c6612dc78438",
+      "IsHidden": "False"
+    },
+    {
+      "Start": "4117654d2ed540b092b66c7c1bf6f627",
+      "End": "66fe0aadc62042a9af5b988df3233b77",
+      "Id": "f92d7119a5a04091b4397e80db4cf20f",
+      "IsHidden": "False"
+    },
+    {
+      "Start": "5396077a9cc644838820a43353194540",
+      "End": "3f93ffe305b746838e9bf13ace62507f",
+      "Id": "b89a2aeeffee4b3a93c030dc00876ee7",
+      "IsHidden": "False"
+    },
+    {
+      "Start": "53f3d9e7c8e342809382028625c566c4",
+      "End": "394078af14fe46d7bf961aae23b8dd68",
+      "Id": "64e9fe6ec05f47cc9de59eb0656fb022",
+      "IsHidden": "False"
+    },
+    {
+      "Start": "2fb46b95b54044c2b9b0b0be458fe842",
+      "End": "59f0336764754de390cb2b5e80ee1fa4",
+      "Id": "1364111cbb984620a2ea63b6c8d2801f",
+      "IsHidden": "False"
+    },
+    {
+      "Start": "a61eb6fb819a45c99aa3087042900497",
+      "End": "c885ca16f20340bcb9d61e32c8424708",
+      "Id": "7e37a84ae5c34308a2223056a406c888",
+      "IsHidden": "False"
+    },
+    {
+      "Start": "af52193fc32d450da6da850635f89db7",
+      "End": "410771cb44ad4f1794f7048e03b55bec",
+      "Id": "00fe77fa23b04772afd0ad07a6038842",
+      "IsHidden": "False"
+    },
+    {
+      "Start": "f435ba03a13544309509df67364661fd",
+      "End": "e1132f8d540a49cfb44ba363d1c91042",
+      "Id": "ed759f62e0ee462cbf1f15b4c8ff91cc",
+      "IsHidden": "False"
+    },
+    {
+      "Start": "0035588bf41343f28ed511d28e6c92a6",
+      "End": "26c5c6b22c274559b1deb871a51bdc08",
+      "Id": "abba599549f84cb2af9013a7167acf63",
+      "IsHidden": "False"
+    },
+    {
+      "Start": "80f1f91f496f4225acb1f9d66aa2aa57",
+      "End": "733ddb86a9cc4b969296c6721bacd6aa",
+      "Id": "7625d345ce51475aa74815a2a50008dd",
+      "IsHidden": "False"
+    },
+    {
+      "Start": "88322f28fa37468db16c1127d189d457",
+      "End": "199d1f09f1aa4cf7aec509d6d284a20b",
+      "Id": "659d929fa54944fc8d090d4e37235bce",
+      "IsHidden": "False"
+    }
+  ],
+  "Dependencies": [],
+  "NodeLibraryDependencies": [
+    {
+      "Name": "Camber",
+      "Version": "4.2.6",
+      "ReferenceType": "Package",
+      "Nodes": [
+        "993b121238504e6b9a5376321c1f11e0",
+        "9bffe1677a734f62852402f84c95ba47",
+        "a8f5ae211fb74f75a6bd383eda58e61e"
+      ]
+    }
+  ],
+  "Thumbnail": "",
+  "GraphDocumentationURL": null,
+  "ExtensionWorkspaceData": [
+    {
+      "ExtensionGuid": "28992e1d-abb9-417f-8b1b-05e053bee670",
+      "Name": "Properties",
+      "Version": "2.17",
+      "Data": {}
+    }
+  ],
+  "Author": "",
+  "Linting": {
+    "activeLinter": "None",
+    "activeLinterId": "7b75fb44-43fd-4631-a878-29f4d5d8399a",
+    "warningCount": 0,
+    "errorCount": 0
+  },
+  "Bindings": [
+    {
+      "NodeId": "993b1212-3850-4e6b-9a53-76321c1f11e0",
+      "Binding": {
+        "ByName_InClassDecl-1_InFunctionScope-1_Instance0_993b1212-3850-4e6b-9a53-76321c1f11e0": "PFNPQVAtRU5WOkVudmVsb3BlIHhtbG5zOnhzaT0iaHR0cDovL3d3dy53My5vcmcvMjAwMS9YTUxTY2hlbWEtaW5zdGFuY2UiIHhtbG5zOnhzZD0iaHR0cDovL3d3dy53My5vcmcvMjAwMS9YTUxTY2hlbWEiIHhtbG5zOlNPQVAtRU5DPSJodHRwOi8vc2NoZW1hcy54bWxzb2FwLm9yZy9zb2FwL2VuY29kaW5nLyIgeG1sbnM6U09BUC1FTlY9Imh0dHA6Ly9zY2hlbWFzLnhtbHNvYXAub3JnL3NvYXAvZW52ZWxvcGUvIiB4bWxuczpjbHI9Imh0dHA6Ly9zY2hlbWFzLm1pY3Jvc29mdC5jb20vc29hcC9lbmNvZGluZy9jbHIvMS4wIiBTT0FQLUVOVjplbmNvZGluZ1N0eWxlPSJodHRwOi8vc2NoZW1hcy54bWxzb2FwLm9yZy9zb2FwL2VuY29kaW5nLyI+DQo8U09BUC1FTlY6Qm9keT4NCjxhMTpDYWxsU2l0ZV94MDAyQl9UcmFjZVNlcmlhbGlzZXJIZWxwZXIgaWQ9InJlZi0xIiB4bWxuczphMT0iaHR0cDovL3NjaGVtYXMubWljcm9zb2Z0LmNvbS9jbHIvbnNhc3NlbS9Qcm90b0NvcmUvUHJvdG9Db3JlJTJDJTIwVmVyc2lvbiUzRDIuMTcuMC4zNDcyJTJDJTIwQ3VsdHVyZSUzRG5ldXRyYWwlMkMlMjBQdWJsaWNLZXlUb2tlbiUzRG51bGwiPg0KPE51bWJlck9mRWxlbWVudHM+MTwvTnVtYmVyT2ZFbGVtZW50cz4NCjxCYXNlLTBfSGFzRGF0YT50cnVlPC9CYXNlLTBfSGFzRGF0YT4NCjxCYXNlLTBfRGF0YSBpZD0icmVmLTMiPlBGTlBRVkF0UlU1V09rVnVkbVZzYjNCbElIaHRiRzV6T25oemFUMGlhSFIwY0RvdkwzZDNkeTUzTXk1dmNtY3ZNakF3TVM5WVRVeFRZMmhsYldFdGFXNXpkR0Z1WTJVaUlIaHRiRzV6T25oelpEMGlhSFIwY0RvdkwzZDNkeTUzTXk1dmNtY3ZNakF3TVM5WVRVeFRZMmhsYldFaUlIaHRiRzV6T2xOUFFWQXRSVTVEUFNKb2RIUndPaTh2YzJOb1pXMWhjeTU0Yld4emIyRndMbTl5Wnk5emIyRndMMlZ1WTI5a2FXNW5MeUlnZUcxc2JuTTZVMDlCVUMxRlRsWTlJbWgwZEhBNkx5OXpZMmhsYldGekxuaHRiSE52WVhBdWIzSm5MM052WVhBdlpXNTJaV3h2Y0dVdklpQjRiV3h1Y3pwamJISTlJbWgwZEhBNkx5OXpZMmhsYldGekxtMXBZM0p2YzI5bWRDNWpiMjB2YzI5aGNDOWxibU52WkdsdVp5OWpiSEl2TVM0d0lpQlRUMEZRTFVWT1ZqcGxibU52WkdsdVoxTjBlV3hsUFNKb2RIUndPaTh2YzJOb1pXMWhjeTU0Yld4emIyRndMbTl5Wnk5emIyRndMMlZ1WTI5a2FXNW5MeUkrRFFvOFUwOUJVQzFGVGxZNlFtOWtlVDROQ2p4aE1UcFRaWEpwWVd4cGVtRmliR1ZJWVc1a2JHVWdhV1E5SW5KbFppMHhJaUI0Yld4dWN6cGhNVDBpYUhSMGNEb3ZMM05qYUdWdFlYTXViV2xqY205emIyWjBMbU52YlM5amJISXZibk5oYzNObGJTOUJkWFJ2WkdWemF5NUJkWFJ2UTBGRUxrUjVibUZ0YjBGd2NDNVRaWEoyYVdObGN5OUJZMFI1Ym1GdGIxTmxjblpwWTJWekpUSkRKVEl3Vm1WeWMybHZiaVV6UkRFekxqWXVNelF5TGpBbE1rTWxNakJEZFd4MGRYSmxKVE5FYm1WMWRISmhiQ1V5UXlVeU1GQjFZbXhwWTB0bGVWUnZhMlZ1SlRORWJuVnNiQ0krRFFvOGMzUnlhVzVuU1VRZ2FXUTlJbkpsWmkweklqNHlPVEF5TVR3dmMzUnlhVzVuU1VRK0RRbzhMMkV4T2xObGNtbGhiR2w2WVdKc1pVaGhibVJzWlQ0TkNqd3ZVMDlCVUMxRlRsWTZRbTlrZVQ0TkNqd3ZVMDlCVUMxRlRsWTZSVzUyWld4dmNHVStEUW89PC9CYXNlLTBfRGF0YT4NCjxCYXNlLTBfSGFzTmVzdGVkRGF0YT5mYWxzZTwvQmFzZS0wX0hhc05lc3RlZERhdGE+DQo8L2ExOkNhbGxTaXRlX3gwMDJCX1RyYWNlU2VyaWFsaXNlckhlbHBlcj4NCjwvU09BUC1FTlY6Qm9keT4NCjwvU09BUC1FTlY6RW52ZWxvcGU+DQo="
+      }
+    },
+    {
+      "NodeId": "da3aeada-fb2b-41ec-9035-cc5ad8434008",
+      "Binding": {
+        "SurfaceByName_InClassDecl-1_InFunctionScope-1_Instance0_da3aeada-fb2b-41ec-9035-cc5ad8434008": "PFNPQVAtRU5WOkVudmVsb3BlIHhtbG5zOnhzaT0iaHR0cDovL3d3dy53My5vcmcvMjAwMS9YTUxTY2hlbWEtaW5zdGFuY2UiIHhtbG5zOnhzZD0iaHR0cDovL3d3dy53My5vcmcvMjAwMS9YTUxTY2hlbWEiIHhtbG5zOlNPQVAtRU5DPSJodHRwOi8vc2NoZW1hcy54bWxzb2FwLm9yZy9zb2FwL2VuY29kaW5nLyIgeG1sbnM6U09BUC1FTlY9Imh0dHA6Ly9zY2hlbWFzLnhtbHNvYXAub3JnL3NvYXAvZW52ZWxvcGUvIiB4bWxuczpjbHI9Imh0dHA6Ly9zY2hlbWFzLm1pY3Jvc29mdC5jb20vc29hcC9lbmNvZGluZy9jbHIvMS4wIiBTT0FQLUVOVjplbmNvZGluZ1N0eWxlPSJodHRwOi8vc2NoZW1hcy54bWxzb2FwLm9yZy9zb2FwL2VuY29kaW5nLyI+DQo8U09BUC1FTlY6Qm9keT4NCjxhMTpDYWxsU2l0ZV94MDAyQl9UcmFjZVNlcmlhbGlzZXJIZWxwZXIgaWQ9InJlZi0xIiB4bWxuczphMT0iaHR0cDovL3NjaGVtYXMubWljcm9zb2Z0LmNvbS9jbHIvbnNhc3NlbS9Qcm90b0NvcmUvUHJvdG9Db3JlJTJDJTIwVmVyc2lvbiUzRDIuMTcuMC4zNDcyJTJDJTIwQ3VsdHVyZSUzRG5ldXRyYWwlMkMlMjBQdWJsaWNLZXlUb2tlbiUzRG51bGwiPg0KPE51bWJlck9mRWxlbWVudHM+MTwvTnVtYmVyT2ZFbGVtZW50cz4NCjxCYXNlLTBfSGFzRGF0YT50cnVlPC9CYXNlLTBfSGFzRGF0YT4NCjxCYXNlLTBfRGF0YSBpZD0icmVmLTMiPlBGTlBRVkF0UlU1V09rVnVkbVZzYjNCbElIaHRiRzV6T25oemFUMGlhSFIwY0RvdkwzZDNkeTUzTXk1dmNtY3ZNakF3TVM5WVRVeFRZMmhsYldFdGFXNXpkR0Z1WTJVaUlIaHRiRzV6T25oelpEMGlhSFIwY0RvdkwzZDNkeTUzTXk1dmNtY3ZNakF3TVM5WVRVeFRZMmhsYldFaUlIaHRiRzV6T2xOUFFWQXRSVTVEUFNKb2RIUndPaTh2YzJOb1pXMWhjeTU0Yld4emIyRndMbTl5Wnk5emIyRndMMlZ1WTI5a2FXNW5MeUlnZUcxc2JuTTZVMDlCVUMxRlRsWTlJbWgwZEhBNkx5OXpZMmhsYldGekxuaHRiSE52WVhBdWIzSm5MM052WVhBdlpXNTJaV3h2Y0dVdklpQjRiV3h1Y3pwamJISTlJbWgwZEhBNkx5OXpZMmhsYldGekxtMXBZM0p2YzI5bWRDNWpiMjB2YzI5aGNDOWxibU52WkdsdVp5OWpiSEl2TVM0d0lpQlRUMEZRTFVWT1ZqcGxibU52WkdsdVoxTjBlV3hsUFNKb2RIUndPaTh2YzJOb1pXMWhjeTU0Yld4emIyRndMbTl5Wnk5emIyRndMMlZ1WTI5a2FXNW5MeUkrRFFvOFUwOUJVQzFGVGxZNlFtOWtlVDROQ2p4aE1UcFRaWEpwWVd4cGVtRmliR1ZJWVc1a2JHVWdhV1E5SW5KbFppMHhJaUI0Yld4dWN6cGhNVDBpYUhSMGNEb3ZMM05qYUdWdFlYTXViV2xqY205emIyWjBMbU52YlM5amJISXZibk5oYzNObGJTOUJkWFJ2WkdWemF5NUJkWFJ2UTBGRUxrUjVibUZ0YjBGd2NDNVRaWEoyYVdObGN5OUJZMFI1Ym1GdGIxTmxjblpwWTJWekpUSkRKVEl3Vm1WeWMybHZiaVV6UkRFekxqWXVNelF5TGpBbE1rTWxNakJEZFd4MGRYSmxKVE5FYm1WMWRISmhiQ1V5UXlVeU1GQjFZbXhwWTB0bGVWUnZhMlZ1SlRORWJuVnNiQ0krRFFvOGMzUnlhVzVuU1VRZ2FXUTlJbkpsWmkweklqNHlOa0kyTXp3dmMzUnlhVzVuU1VRK0RRbzhMMkV4T2xObGNtbGhiR2w2WVdKc1pVaGhibVJzWlQ0TkNqd3ZVMDlCVUMxRlRsWTZRbTlrZVQ0TkNqd3ZVMDlCVUMxRlRsWTZSVzUyWld4dmNHVStEUW89PC9CYXNlLTBfRGF0YT4NCjxCYXNlLTBfSGFzTmVzdGVkRGF0YT5mYWxzZTwvQmFzZS0wX0hhc05lc3RlZERhdGE+DQo8L2ExOkNhbGxTaXRlX3gwMDJCX1RyYWNlU2VyaWFsaXNlckhlbHBlcj4NCjwvU09BUC1FTlY6Qm9keT4NCjwvU09BUC1FTlY6RW52ZWxvcGU+DQo="
+      }
+    }
+  ],
+  "View": {
+    "Dynamo": {
+      "ScaleFactor": 1.0,
+      "HasRunWithoutCrash": true,
+      "IsVisibleInDynamoLibrary": true,
+      "Version": "2.17.0.3472",
+      "RunType": "Manual",
+      "RunPeriod": "1000"
+    },
+    "Camera": {
+      "Name": "_Background Preview",
+      "EyeX": -17.0,
+      "EyeY": 24.0,
+      "EyeZ": 50.0,
+      "LookX": 12.0,
+      "LookY": -13.0,
+      "LookZ": -58.0,
+      "UpX": 0.0,
+      "UpY": 1.0,
+      "UpZ": 0.0
+    },
+    "ConnectorPins": [],
+    "NodeViews": [
+      {
+        "Name": "Select Object",
+        "ShowGeometry": true,
+        "Id": "1d8a27dcb2384f1185ff9e667d4eb97e",
+        "IsSetAsInput": true,
+        "IsSetAsOutput": false,
+        "Excluded": false,
+        "X": 328.53684129640146,
+        "Y": 646.05909863488887
+      },
+      {
+        "Name": "CivilObject.Name",
+        "ShowGeometry": true,
+        "Id": "2652c0d9a38d415f9cff2e0ece41ec68",
+        "IsSetAsInput": false,
+        "IsSetAsOutput": false,
+        "Excluded": false,
+        "X": 612.0088953994134,
+        "Y": 645.7990757195422
+      },
+      {
+        "Name": "Create surface slope analysis ",
+        "ShowGeometry": true,
+        "Id": "6e8fc2c7f4304f518e2c1a0ec25f624e",
+        "IsSetAsInput": false,
+        "IsSetAsOutput": false,
+        "Excluded": false,
+        "X": 2454.2855196123423,
+        "Y": 600.69753870987631
+      },
+      {
+        "Name": "Slopes and colours",
+        "ShowGeometry": true,
+        "Id": "a756971e06c645bd8bae901e6461050a",
+        "IsSetAsInput": false,
+        "IsSetAsOutput": false,
+        "Excluded": false,
+        "X": 2091.4373977003479,
+        "Y": 827.391677618011
+      },
+      {
+        "Name": "no. of bands",
+        "ShowGeometry": true,
+        "Id": "ca8b071381314c4d8e64d707a7d85cf8",
+        "IsSetAsInput": false,
+        "IsSetAsOutput": false,
+        "Excluded": false,
+        "X": 2838.4323586495416,
+        "Y": 791.67803634805932
+      },
+      {
+        "Name": "TinSurface.ByName",
+        "ShowGeometry": true,
+        "Id": "993b121238504e6b9a5376321c1f11e0",
+        "IsSetAsInput": false,
+        "IsSetAsOutput": false,
+        "Excluded": false,
+        "X": 956.33699956384783,
+        "Y": 181.37807460439319
+      },
+      {
+        "Name": "Document.Current",
+        "ShowGeometry": true,
+        "Id": "767bc33554ca4bb59459fb6a6ba719a4",
+        "IsSetAsInput": false,
+        "IsSetAsOutput": false,
+        "Excluded": false,
+        "X": 584.74389195066044,
+        "Y": 87.273918282758189
+      },
+      {
+        "Name": "TinSurface.PasteSurface",
+        "ShowGeometry": true,
+        "Id": "9bffe1677a734f62852402f84c95ba47",
+        "IsSetAsInput": false,
+        "IsSetAsOutput": false,
+        "Excluded": false,
+        "X": 1490.6692824272097,
+        "Y": 608.09187057462839
+      },
+      {
+        "Name": "Code Block",
+        "ShowGeometry": true,
+        "Id": "6d0d35169daf492d9290030a458d89dd",
+        "IsSetAsInput": false,
+        "IsSetAsOutput": false,
+        "Excluded": false,
+        "X": 576.80383635349631,
+        "Y": 216.30561194579479
+      },
+      {
+        "Name": "Surface Styles",
+        "ShowGeometry": true,
+        "Id": "a8f5ae211fb74f75a6bd383eda58e61e",
+        "IsSetAsInput": true,
+        "IsSetAsOutput": false,
+        "Excluded": false,
+        "X": 258.22677223730665,
+        "Y": 419.09237966344136
+      },
+      {
+        "Name": "Selection.SurfaceByName",
+        "ShowGeometry": true,
+        "Id": "da3aeadafb2b41ec9035cc5ad8434008",
+        "IsSetAsInput": false,
+        "IsSetAsOutput": false,
+        "Excluded": false,
+        "X": 969.83640531452124,
+        "Y": 645.36963483001614
+      },
+      {
+        "Name": "Document.Current",
+        "ShowGeometry": true,
+        "Id": "b9d882616a3f46d284c96c11739985b9",
+        "IsSetAsInput": false,
+        "IsSetAsOutput": false,
+        "Excluded": false,
+        "X": 631.587282190368,
+        "Y": 783.64849830418575
+      }
+    ],
+    "Annotations": [
+      {
+        "Id": "40fee631939346838a1ff7748b8a72b3",
+        "Title": "Create surface slope analysis ",
+        "DescriptionText": "<Double click here to edit group description>",
+        "IsExpanded": true,
+        "WidthAdjustment": 0.0,
+        "HeightAdjustment": 0.0,
+        "Nodes": [
+          "6e8fc2c7f4304f518e2c1a0ec25f624e",
+          "a756971e06c645bd8bae901e6461050a",
+          "ca8b071381314c4d8e64d707a7d85cf8",
+          "6df1bd8b560c4711b3994333897fd7ce"
+        ],
+        "HasNestedGroups": false,
+        "Left": 2081.4373977003479,
+        "Top": 527.69753870987631,
+        "Width": 931.99496094919368,
+        "Height": 473.69413890813473,
+        "FontSize": 36.0,
+        "GroupStyleId": "00000000-0000-0000-0000-000000000000",
+        "InitialTop": 600.69753870987631,
+        "InitialHeight": 371.69413890813473,
+        "TextblockHeight": 63.0,
+        "Background": "#FFC1D676"
+      },
+      {
+        "Id": "d89f903191b04d01a1558312c3608bd5",
+        "Title": "UI - Select Surface and style",
+        "DescriptionText": "<Double click here to edit group description>",
+        "IsExpanded": true,
+        "WidthAdjustment": 0.0,
+        "HeightAdjustment": 0.0,
+        "Nodes": [
+          "1d8a27dcb2384f1185ff9e667d4eb97e",
+          "a8f5ae211fb74f75a6bd383eda58e61e"
+        ],
+        "HasNestedGroups": false,
+        "Left": 248.22677223730665,
+        "Top": 303.09237966344136,
+        "Width": 316.00000000000006,
+        "Height": 493.96671897144751,
+        "FontSize": 36.0,
+        "GroupStyleId": "883066aa-1fe2-44a4-9bd1-c3df86bfe9f6",
+        "InitialTop": 419.09237966344136,
+        "InitialHeight": 145.0,
+        "TextblockHeight": 106.0,
+        "Background": "#FFFFB8D8"
+      },
+      {
+        "Id": "fe093fa042c14ad9a9de2777a7b835a5",
+        "Title": "Cretae empty surface",
+        "DescriptionText": "<Double click here to edit group description>",
+        "IsExpanded": true,
+        "WidthAdjustment": 0.0,
+        "HeightAdjustment": 0.0,
+        "Nodes": [
+          "993b121238504e6b9a5376321c1f11e0",
+          "767bc33554ca4bb59459fb6a6ba719a4",
+          "6d0d35169daf492d9290030a458d89dd"
+        ],
+        "HasNestedGroups": false,
+        "Left": 566.80383635349631,
+        "Top": 14.273918282758189,
+        "Width": 645.5331632103514,
+        "Height": 364.104156321635,
+        "FontSize": 36.0,
+        "GroupStyleId": "00000000-0000-0000-0000-000000000000",
+        "InitialTop": 87.273918282758189,
+        "InitialHeight": 418.89198987860362,
+        "TextblockHeight": 63.0,
+        "Background": "#FFC1D676"
+      },
+      {
+        "Id": "6df1bd8b560c4711b3994333897fd7ce",
+        "Title": "min,max,r,g,b",
+        "DescriptionText": null,
+        "IsExpanded": true,
+        "WidthAdjustment": 0.0,
+        "HeightAdjustment": 0.0,
+        "Nodes": [],
+        "HasNestedGroups": false,
+        "Left": 2107.2941134973635,
+        "Top": 785.01980305817483,
+        "Width": 0.0,
+        "Height": 0.0,
+        "FontSize": 36.0,
+        "GroupStyleId": "00000000-0000-0000-0000-000000000000",
+        "InitialTop": 0.0,
+        "InitialHeight": 0.0,
+        "TextblockHeight": 0.0,
+        "Background": "#FFC1D676"
+      }
+    ],
+    "X": -326.59285013677436,
+    "Y": 62.007063211247612,
+    "Zoom": 0.54912368216002683
+  }
+}
