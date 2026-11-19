@@ -11,7 +11,6 @@ temp/
 tmp/
 Downloaded/
 _SS/
-_resources/
 
 
 # =========================
@@ -26,6 +25,8 @@ _resources/
 *.pyo
 *.user
 *.suo
+*.dwl
+*.dwl2
 
 
 # =========================
@@ -34,3 +35,7 @@ _resources/
 Thumbs.db
 Desktop.ini
 TODO.md
+
+# Saved web pages (reference only, not tracked)
+_resources/*.html
+_resources/*_files/
